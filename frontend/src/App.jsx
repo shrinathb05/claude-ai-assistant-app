@@ -1,108 +1,67 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
+import Header from "./components/Header";
+import ChatMessage from "./components/ChatMessage";
+import ChatInput from "./components/ChatInput";
+import TypingDots from "./components/TypingDots";
+import { askBackend } from "./lib/api";
+import "./index.css";
 
-function App() {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([]);
+export default function App() {
+  const [messages, setMessages] = useState([
+    { role: "assistant", content: "Hi! I’m your Claude/Gemini assistant. How can I help today?" }
+  ]);
   const [loading, setLoading] = useState(false);
-  const chatEndRef = useRef(null);
+  const endRef = useRef(null);
 
-  // Auto-scroll to latest message
+  // auto-scroll on new message
   useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
-  const sendMessage = async () => {
-    if (!input.trim()) return;
+  const handleSend = async (prompt) => {
+    const userMsg = { role: "user", content: prompt };
+    setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
-    const userMessage = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMessage]);
-
     try {
-      const res = await fetch("http://localhost:8000/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: input }),
-      });
-      const data = await res.json();
-
-      const botMessage = {
-        role: "assistant",
-        content: data.response || data.error || "No response received.",
-      };
-      setMessages((prev) => [...prev, botMessage]);
+      const reply = await askBackend(prompt); // calls your FastAPI /chat
+      const botMsg = { role: "assistant", content: reply || "_(no content)_" };
+      setMessages((prev) => [...prev, botMsg]);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "⚠️ Error contacting backend." },
+        { role: "assistant", content: `⚠️ ${err.message || "Error contacting backend"}` }
       ]);
-    }
-
-    setInput("");
-    setLoading(false);
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter" && !loading) {
-      sendMessage();
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-indigo-600 text-white p-4 text-center font-bold text-xl shadow-md">
-        Claude AI Assistant
-      </header>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
+      <Header />
 
-      {/* Chat Window */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            className={`flex ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-            <div
-              className={`rounded-2xl px-4 py-2 max-w-xs shadow-sm ${
-                msg.role === "user"
-                  ? "bg-indigo-500 text-white"
-                  : "bg-white text-gray-800 border"
-              }`}
-            >
-              {msg.content}
+      <main className="flex-1">
+        <div className="mx-auto max-w-4xl px-4 py-6 space-y-3">
+          <AnimatePresence initial={false}>
+            {messages.map((m, i) => (
+              <ChatMessage key={i} msg={m} index={i} />
+            ))}
+          </AnimatePresence>
+
+          {loading && (
+            <div className="flex justify-start">
+              <div className="rounded-2xl px-4 py-3 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                <TypingDots />
+              </div>
             </div>
-          </div>
-        ))}
-        {loading && (
-          <div className="text-gray-500 text-sm italic">Claude is typing...</div>
-        )}
-        <div ref={chatEndRef}></div>
-      </div>
+          )}
+          <div ref={endRef} />
+        </div>
+      </main>
 
-      {/* Input Box */}
-      <div className="p-4 bg-white shadow-md flex items-center">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyPress}
-          placeholder="Type your message..."
-          className="flex-1 border rounded-xl px-4 py-2 mr-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          disabled={loading}
-        />
-        <button
-          onClick={sendMessage}
-          disabled={loading}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 disabled:opacity-50"
-        >
-          Send
-        </button>
-      </div>
+      <ChatInput onSend={handleSend} disabled={loading} />
     </div>
   );
 }
-
-export default App;
