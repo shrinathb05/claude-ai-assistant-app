@@ -2,18 +2,22 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import google.generativeai as genai
+from dotenv import load_dotenv
+
+# Load .env file if present
+load_dotenv()
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],   # in production, replace "*" with your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure Gemini with API key
+# Configure Gemini with API key (stored in backend only)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 @app.get("/")
@@ -29,10 +33,9 @@ async def chat(request: Request):
         return {"error": "Prompt is required."}
 
     try:
-        model = genai.GenerativeModel("gemini-pro")  # use "gemini-1.5-pro" if enabled
+        model = genai.GenerativeModel("gemini-1.5-flash")  # ✅ Updated model
         response = model.generate_content(prompt)
 
-        # Extract response text
         return {"response": response.text}
     except Exception as e:
         return {"error": str(e)}
