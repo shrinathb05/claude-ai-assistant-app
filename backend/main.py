@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os
-import openai
+import google.generativeai as genai
 
 app = FastAPI()
 
@@ -13,25 +13,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Configure Gemini with API key
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
 @app.get("/")
 def read_root():
-    return {"message": "Claude AI Assistant backend is running!"}
+    return {"message": "Claude/Gemini AI Assistant backend is running!"}
 
 @app.post("/chat")
 async def chat(request: Request):
     data = await request.json()
     prompt = data.get("prompt", "")
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    if not openai.api_key:
-        return {"error": "OpenAI API key not set."}
+
+    if not prompt:
+        return {"error": "Prompt is required."}
+
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,
-            temperature=0.7
-        )
-        answer = response.choices[0].message["content"]
-        return {"response": answer}
+        model = genai.GenerativeModel("gemini-pro")  # use "gemini-1.5-pro" if enabled
+        response = model.generate_content(prompt)
+
+        # Extract response text
+        return {"response": response.text}
     except Exception as e:
         return {"error": str(e)}
